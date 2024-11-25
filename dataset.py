@@ -3,11 +3,10 @@ from torch.utils.data import Dataset
 import os
 import pandas as pd
 import librosa as lr
-
-
+from tqdm import tqdm
 
 class URBAN_SED(Dataset):
-    def __init__(self, root, transform=None, target_transform=None, split='train', **kwargs):
+    def __init__(self, root, transform=None, target_transform=None, split='train', load_all_data=False, **kwargs):
         assert split in ['train', 'validate', 'test'], 'Invalid split'
         self.root = root
         self.split = split
@@ -16,18 +15,27 @@ class URBAN_SED(Dataset):
         self.target_transform = target_transform
         self.kwargs = kwargs
         self.min_seqlen = self.get_min_seqlen()
+        self.load_all_data = load_all_data
+        
+        if load_all_data:
+            self.all_data, self.all_labels = self.get_all_data()
         
     def __len__(self):
         return len(self.data)
     
     def __getitem__(self, idx):
-        audio_path, annotation_path, duration = self.data.iloc[idx]
-        audio, sr = lr.load(f"{self.root}/audio/{self.split}/{audio_path}")
-        hop_length = self.kwargs.get('hop_length', 512)
-        n_fft = self.kwargs.get('n_fft', 2048)
-        
-        spectrogram = torch.Tensor(lr.feature.melspectrogram(y=audio, sr=sr, hop_length=hop_length, n_fft=n_fft))[:, :self.min_seqlen]
-        label = self.get_label(annotation_path, spectrogram.shape)
+        if self.load_all_data:
+            spectrogram = self.all_data[idx]
+            label = self.all_labels[idx]
+        else:
+            audio_path, annotation_path, duration = self.data.iloc[idx]
+            audio, sr = lr.load(f"{self.root}/audio/{self.split}/{audio_path}")
+            hop_length = self.kwargs.get('hop_length', 512)
+            n_fft = self.kwargs.get('n_fft', 2048)
+            
+            spectrogram = torch.Tensor(lr.feature.melspectrogram(y=audio, sr=sr, hop_length=hop_length, n_fft=n_fft))[:, :self.min_seqlen]
+            label = self.get_label(annotation_path, spectrogram.shape)
+
         if self.transform:
             spectrogram = self.transform(spectrogram)
         if self.target_transform:
@@ -111,6 +119,22 @@ class URBAN_SED(Dataset):
     def get_min_seqlen(self):
         min_duration = self.data['duration'].min()
         return int(min_duration * 22050 / self.kwargs.get('hop_length', 512)) + 1
+    
+    def get_all_data(self):
+        all_data = []
+        all_labels = []
+        for idx in tqdm(range(len(self.data)), desc=f"Loading {self.split} data"):
+            audio_path, annotation_path, duration = self.data.iloc[idx]
+            audio, sr = lr.load(f"{self.root}/audio/{self.split}/{audio_path}")
+            hop_length = self.kwargs.get('hop_length', 512)
+            n_fft = self.kwargs.get('n_fft', 2048)
+
+            spectrogram = torch.Tensor(lr.feature.melspectrogram(y=audio, sr=sr, hop_length=hop_length, n_fft=n_fft))[:, :self.min_seqlen]
+            label = self.get_label(annotation_path, spectrogram.shape)
+            all_data.append(spectrogram)
+            all_labels.append(label)
+        
+        return all_data, all_labels
     
 if __name__ == '__main__':
     data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='train')
