@@ -6,7 +6,7 @@ import librosa as lr
 from tqdm import tqdm
 
 class URBAN_SED(Dataset):
-    def __init__(self, root, transform=None, target_transform=None, split='train', preprocessed_dir=None, load_all_data=False, save_processed_dir=None, **kwargs):
+    def __init__(self, root, transform=None, target_transform=None, split='train', preprocessed_dir=None, load_all_data=True, save_processed_dir=None, **kwargs):
         assert split in ['train', 'validate', 'test'], 'Invalid split'
         self.root = root
         self.split = split
@@ -19,13 +19,16 @@ class URBAN_SED(Dataset):
         
         if preprocessed_dir:
             if not os.path.exists(f"{self.root}/preprocessed/{preprocessed_dir}"):
-                raise FileNotFoundError(f"Preprocessed directory {preprocessed_dir} not found")
-            self.all_data, self.all_labels = self.get_preprocessed_data(preprocessed_dir)
-        elif load_all_data:
-            self.all_data, self.all_labels = self.get_all_data()
-            if save_processed_dir:
-                os.makedirs(f"{self.root}/preprocessed/{save_processed_dir}", exist_ok=True)
+                print(f"Preprocessed directory {preprocessed_dir} not found, falling back to loading all data")
+                self.all_data, self.all_labels = self.get_all_data()
+            else:
+                self.all_data, self.all_labels = self.get_preprocessed_data(preprocessed_dir)
+
+        if save_processed_dir:
+            os.makedirs(f"{self.root}/preprocessed/{save_processed_dir}", exist_ok=True)
+            if not os.path.exists(f"{self.root}/preprocessed/{save_processed_dir}/{self.split}_data.pt"):
                 torch.save(self.all_data, f"{self.root}/preprocessed/{save_processed_dir}/{self.split}_data.pt")
+            if not os.path.exists(f"{self.root}/preprocessed/{save_processed_dir}/{self.split}_labels.pt"):
                 torch.save(self.all_labels, f"{self.root}/preprocessed/{save_processed_dir}/{self.split}_labels.pt")
         
     def __len__(self):

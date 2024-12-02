@@ -15,9 +15,9 @@ LOAD_ALL_DATA = True # change it to True if you don't have enough RAM
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-train_dataloader = DataLoader(URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='train', preprocessed_dir='base'), batch_size=BATCH_SIZE, shuffle=True)
-validate_dataloader = DataLoader(URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='validate', preprocessed_dir='base'), batch_size=BATCH_SIZE, shuffle=True)
-# test_dataloader = DataLoader(URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='test', preprocessed_dir='base'), batch_size=BATCH_SIZE, shuffle=True)
+train_dataloader = DataLoader(URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='train', preprocessed_dir='base', load_all_data=LOAD_ALL_DATA), batch_size=BATCH_SIZE, shuffle=True)
+validate_dataloader = DataLoader(URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='validate', preprocessed_dir='base', load_all_data=LOAD_ALL_DATA), batch_size=BATCH_SIZE, shuffle=True)
+# test_dataloader = DataLoader(URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='test', preprocessed_dir='base', load_all_data=LOAD_ALL_DATA), batch_size=BATCH_SIZE, shuffle=True)
 
 # model = SED_Attention_LSTM(mel_bins=128, lstm_input_size=256, hidden_size=128, num_classes=11, num_layers=3, bidirectional=True).to('cuda')
 model = SED_LSTM(mel_bins=128, lstm_input_size=256, hidden_size=128, num_classes=11, num_layers=3, bidirectional=True).to(device)
