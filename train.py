@@ -11,7 +11,7 @@ from util import save_output
 EPOCH = 50
 LR = 0.0001
 BATCH_SIZE = 32
-LOAD_ALL_DATA = True # change it to True if you don't have enough RAM
+LOAD_ALL_DATA = True # change it to False if you don't have enough RAM
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
