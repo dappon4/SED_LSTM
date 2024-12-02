@@ -6,7 +6,7 @@ import librosa as lr
 from tqdm import tqdm
 
 class URBAN_SED(Dataset):
-    def __init__(self, root, transform=None, target_transform=None, split='train', load_all_data=False, **kwargs):
+    def __init__(self, root, transform=None, target_transform=None, split='train', preprocessed_dir=None, load_all_data=False, save_processed_dir=None, **kwargs):
         assert split in ['train', 'validate', 'test'], 'Invalid split'
         self.root = root
         self.split = split
@@ -17,8 +17,16 @@ class URBAN_SED(Dataset):
         self.min_seqlen = self.get_min_seqlen()
         self.load_all_data = load_all_data
         
-        if load_all_data:
+        if preprocessed_dir:
+            if not os.path.exists(f"{self.root}/preprocessed/{preprocessed_dir}"):
+                raise FileNotFoundError(f"Preprocessed directory {preprocessed_dir} not found")
+            self.all_data, self.all_labels = self.get_preprocessed_data(preprocessed_dir)
+        elif load_all_data:
             self.all_data, self.all_labels = self.get_all_data()
+            if save_processed_dir:
+                os.makedirs(f"{self.root}/preprocessed/{save_processed_dir}", exist_ok=True)
+                torch.save(self.all_data, f"{self.root}/preprocessed/{save_processed_dir}/{self.split}_data.pt")
+                torch.save(self.all_labels, f"{self.root}/preprocessed/{save_processed_dir}/{self.split}_labels.pt")
         
     def __len__(self):
         return len(self.data)
@@ -136,8 +144,20 @@ class URBAN_SED(Dataset):
         
         return all_data, all_labels
     
-if __name__ == '__main__':
-    data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='train')
+    def get_preprocessed_data(self, preprocessed_dir):
+        all_data = torch.load(f"{self.root}/preprocessed/{preprocessed_dir}/{self.split}_data.pt", weights_only=True)
+        all_labels = torch.load(f"{self.root}/preprocessed/{preprocessed_dir}/{self.split}_labels.pt", weights_only=True)
+        return all_data, all_labels
     
-    data.__getitem__(0)
-    data.__getitem__(3500)
+if __name__ == '__main__':
+    # save processed data to root/preprocessed/base/*.pt
+    # data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='train', save_processed_dir='base', load_all_data=True)
+    # data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='validate', save_processed_dir='base', load_all_data=True)
+    # data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='test', save_processed_dir='base', load_all_data=True)
+    
+    # load the processed data
+    train_data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='train', preprocessed_dir='base', load_all_data=True)
+    validate_data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='validate', preprocessed_dir='base', load_all_data=True)
+    test_data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='test', preprocessed_dir='base', load_all_data=True)
+    print(len(train_data), len(validate_data), len(test_data))
+    
