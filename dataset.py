@@ -4,18 +4,21 @@ import os
 import pandas as pd
 import librosa as lr
 from tqdm import tqdm
+from util import save_output
 
 class URBAN_SED(Dataset):
     def __init__(self, root, transform=None, target_transform=None, split='train', preprocessed_dir=None, load_all_data=True, save_processed_dir=None, **kwargs):
         assert split in ['train', 'validate', 'test'], 'Invalid split'
+        self.kwargs = kwargs
+        self.get_attributes()
         self.root = root
         self.split = split
         self.data = self.get_df()
         self.transform = transform
         self.target_transform = target_transform
-        self.kwargs = kwargs
         self.min_seqlen = self.get_min_seqlen()
         self.load_all_data = load_all_data
+        
         
         if preprocessed_dir:
             if not os.path.exists(f"{self.root}/preprocessed/{preprocessed_dir}"):
@@ -23,7 +26,9 @@ class URBAN_SED(Dataset):
                 self.all_data, self.all_labels = self.get_all_data()
             else:
                 self.all_data, self.all_labels = self.get_preprocessed_data(preprocessed_dir)
-
+        elif load_all_data:
+            self.all_data, self.all_labels = self.get_all_data()
+        
         if save_processed_dir:
             os.makedirs(f"{self.root}/preprocessed/{save_processed_dir}", exist_ok=True)
             if not os.path.exists(f"{self.root}/preprocessed/{save_processed_dir}/{self.split}_data.pt"):
@@ -41,10 +46,8 @@ class URBAN_SED(Dataset):
         else:
             audio_path, annotation_path, duration = self.data.iloc[idx]
             audio, sr = lr.load(f"{self.root}/audio/{self.split}/{audio_path}")
-            hop_length = self.kwargs.get('hop_length', 512)
-            n_fft = self.kwargs.get('n_fft', 2048)
             
-            spectrogram = torch.Tensor(lr.feature.melspectrogram(y=audio, sr=sr, hop_length=hop_length, n_fft=n_fft))[:, :self.min_seqlen]
+            spectrogram = torch.Tensor(lr.feature.melspectrogram(y=audio, sr=sr, hop_length=self.hop_length, n_fft=self.n_fft, n_mels=self.n_mels))[:, :self.min_seqlen]
             label = self.get_label(annotation_path, spectrogram.shape)
 
         if self.transform:
@@ -53,6 +56,11 @@ class URBAN_SED(Dataset):
             label = self.target_transform(label)
         
         return spectrogram, label
+    
+    def get_attributes(self):
+        self.hop_length = self.kwargs.get('hop_length', 512)
+        self.n_fft = self.kwargs.get('n_fft', 2048)
+        self.n_mels = self.kwargs.get('n_mels', 128)
     
     def get_df(self):
         # index files if csv not found at root directory
@@ -76,16 +84,14 @@ class URBAN_SED(Dataset):
         df = pd.read_csv(f"{self.root}/annotations/{self.split}/{annotation_path}", 
                          sep='\t', header=None, names=['start', 'end', 'label'])
         
-        # Get hop_length and sample rate
-        hop_length = self.kwargs.get('hop_length', 512)
         sr = 22050  # Default sample rate, adjust if necessary
         
         # Map annotations to spectrogram frames
         for _, row in df.iterrows():
             if row['label'] in classes:
                 class_idx = classes.index(row['label'])
-                start_frame = int(row['start'] * sr / hop_length)
-                end_frame = int(row['end'] * sr / hop_length)
+                start_frame = int(row['start'] * sr / self.hop_length)
+                end_frame = int(row['end'] * sr / self.hop_length)
                 label[class_idx, start_frame:end_frame] = 1
         
         # The last class is for the background noise
@@ -129,7 +135,7 @@ class URBAN_SED(Dataset):
     
     def get_min_seqlen(self):
         min_duration = self.data['duration'].min()
-        return int(min_duration * 22050 / self.kwargs.get('hop_length', 512)) + 1
+        return int(min_duration * 22050 / self.hop_length) + 1
     
     def get_all_data(self):
         all_data = []
@@ -137,10 +143,8 @@ class URBAN_SED(Dataset):
         for idx in tqdm(range(len(self.data)), desc=f"Loading {self.split} data"):
             audio_path, annotation_path, duration = self.data.iloc[idx]
             audio, sr = lr.load(f"{self.root}/audio/{self.split}/{audio_path}")
-            hop_length = self.kwargs.get('hop_length', 512)
-            n_fft = self.kwargs.get('n_fft', 2048)
 
-            spectrogram = torch.Tensor(lr.feature.melspectrogram(y=audio, sr=sr, hop_length=hop_length, n_fft=n_fft))[:, :self.min_seqlen]
+            spectrogram = torch.Tensor(lr.feature.melspectrogram(y=audio, sr=sr, hop_length=self.hop_length, n_fft=self.n_fft, n_mels=self.n_mels))[:, :self.min_seqlen]
             label = self.get_label(annotation_path, spectrogram.shape)
             all_data.append(spectrogram)
             all_labels.append(label)
@@ -159,8 +163,11 @@ if __name__ == '__main__':
     # data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='test', save_processed_dir='base', load_all_data=True)
     
     # load the processed data
-    train_data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='train', preprocessed_dir='base', load_all_data=True)
-    validate_data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='validate', preprocessed_dir='base', load_all_data=True)
-    test_data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='test', preprocessed_dir='base', load_all_data=True)
-    print(len(train_data), len(validate_data), len(test_data))
+    # train_data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='train', save_processed_dir='n_mels_64', load_all_data=True, n_mels=64)
+    # validate_data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='validate', save_processed_dir='n_mels_64', load_all_data=True, n_mels=64)
+    test_data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='test',preprocessed_dir='n_mels_64', save_processed_dir='n_mels_64', load_all_data=True, n_mels=64)
+    print(len(test_data))
+    print(test_data.all_data[0].shape)
+    
+    save_output(test_data.all_data[0].unsqueeze(0), test_data.all_labels[0].unsqueeze(0), test_data.all_labels[0].unsqueeze(0), 100)
     
