@@ -163,4 +163,6 @@ cython_debug/
 
 tmp
 *.pth
+*.pt
+model/
 runs
