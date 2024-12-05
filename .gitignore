@@ -162,7 +162,5 @@ cython_debug/
 #.idea/
 
 tmp
-*.pth
-*.pt
 test_output/
 runs
