@@ -1,7 +1,18 @@
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 import torch
+import numpy as np
 import os
+    
+def display_imgs(mat):
+    num, *_ = mat.shape
+    
+    fig, axs = plt.subplots(num, 1, figsize=(10, 8))
+    for i in range(num):
+        im_i = axs[i].imshow(mat[i,:,:], aspect='auto', origin='lower', interpolation='nearest', vmin=0, vmax=1, cmap='inferno')
+        fig.colorbar(im_i, ax=axs[i], label='Intensity')
+    
+    plt.show()
 
 def save_output(spectrogram, output, label, epoch=0):
     # Select the first sequence in the batch
@@ -64,3 +75,106 @@ def save_model(model,time, name):
     os.makedirs(f"model/{time}", exist_ok=True)
     
     torch.save(model.state_dict(), f"model/{time}/{name}.pt")
+
+def clear_tmp():
+    # remove all png in tmp folder
+    for file in os.listdir('tmp'):
+        if file.endswith('.png'):
+            os.remove(f'tmp/{file}')
+
+def post_process(output, threshold=0.4, min_duration=10, max_gap=3):
+    """
+    confidence_threshold: float, the threshold to consider a segment as positive
+    min_duration: int, the minimum frames to consider a segment as positive
+    max_gap: int, the maximum frames to consider as a gap
+    """
+    # output: (batch_size, num_classes, seq_len)
+    batch_size, num_classes, seq_len = output.shape
+    threshold_output = output > threshold
+    
+    for b in range(batch_size):
+        for c in range(num_classes):
+            # remove gaps
+            
+            binary_seq = threshold_output[b, c, :].astype(int)
+            i = 0
+            gap_start = None
+            while i < seq_len:
+                while i < seq_len and binary_seq[i] == 0:
+                    i += 1
+                segment_start = i
+                
+                if i >= seq_len:
+                    break
+                
+                if gap_start is not None:
+                    gap_len = segment_start - gap_start
+                    if gap_len <= max_gap:
+                        binary_seq[gap_start:segment_start] = 1
+                
+                while i < seq_len and binary_seq[i] == 1:
+                    i += 1
+                
+                gap_start = i
+            # remove short segments
+            i = 0
+            segment_start = None
+            while i < seq_len:
+                while i < seq_len and binary_seq[i] == 1:
+                    i += 1
+                segment_end = i-1
+                if segment_start is not None:
+                    segment_len = segment_end - segment_start + 1
+                    if segment_len < min_duration:
+                        binary_seq[segment_start:segment_end+1] = 0
+                
+                if i >= seq_len:
+                    break
+                
+                while i < seq_len and binary_seq[i] == 0:
+                    i += 1
+                
+                segment_start = i
+            
+            threshold_output[b, c, :] = binary_seq
+            
+    
+    return threshold_output.astype(int)
+
+def segment_to_time(prediction, actual_length=10):
+    # prediction of shape (num_classes, seq_len)
+    classes = ['air_conditioner', 'car_horn', 'children_playing', 'dog_bark',
+                   'drilling', 'engine_idling', 'gun_shot', 'jackhammer',
+                   'siren', 'street_music', 'background']
+    _, seq_len = prediction.shape
+    
+    lines = []
+        
+    for i in range(len(classes) - 1):
+        class_pred = prediction[i]
+        start = None
+        end = None
+        j = 0
+        while j < seq_len:
+            while j < seq_len and class_pred[j] == 0:
+                j += 1
+            if j >= seq_len:
+                break
+            start = j
+            while j < seq_len and class_pred[j] == 1:
+                j += 1
+            end = j
+            if start is not None:
+                lines.append(f"{start/seq_len*actual_length:.5f},{end/seq_len*actual_length:.5f},{classes[i]}")
+    return lines
+
+if __name__ == "__main__":
+    threshold = 0.7
+    test_input = np.random.rand(10, 11, 430)
+    threshold_output = test_input > 0.7
+    test_output = post_process(test_input, threshold=threshold)
+    
+    display_imgs(np.concat([test_input[0,:,:][np.newaxis,...], threshold_output[0,:,:][np.newaxis,...] ,test_output[0,:,:][np.newaxis,...]], axis=0))
+    
+    plt.show()
+

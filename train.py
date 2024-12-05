@@ -1,7 +1,5 @@
 import torch
 from torch.utils.data import DataLoader
-from torchvision.ops.focal_loss import sigmoid_focal_loss
-from torch import nn
 from tqdm import tqdm  # Add tqdm import
 from torch.utils.tensorboard import SummaryWriter  # Add SummaryWriter import
 

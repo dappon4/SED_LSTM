@@ -165,4 +165,5 @@ tmp
 *.pth
 *.pt
 model/
+test_output/
 runs

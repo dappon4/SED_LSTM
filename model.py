@@ -3,11 +3,11 @@ import torch
 
 
 class SED_LSTM(nn.Module):
-    def __init__(self, mel_bins, lstm_input_size, hidden_size, num_classes, num_layers=1, bidirectional=False):
+    def __init__(self, mel_bins, lstm_input_size, hidden_size, num_classes, num_layers=1, num_frames=5, bidirectional=False):
         super(SED_LSTM, self).__init__()
         self.lstm = nn.LSTM(lstm_input_size, hidden_size, proj_size=num_classes, batch_first=True, num_layers=num_layers, bidirectional=bidirectional)
         # self.feature_extractor = FeatureExtractor(mel_bins, lstm_input_size)
-        self.feature_extractor = ContextualFeatureExtractor(mel_bins, lstm_input_size, num_frames=10)
+        self.feature_extractor = ContextualFeatureExtractor(mel_bins, lstm_input_size, num_frames=num_frames)
         # self.feature_extractor = FeatureProjection(mel_bins, lstm_input_size)
         
         self.input_proj = nn.Linear(mel_bins, lstm_input_size)

@@ -3,3 +3,4 @@ torch
 tqdm
 pandas
 librosa
+sed_eval
