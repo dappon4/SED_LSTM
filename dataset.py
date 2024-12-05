@@ -101,7 +101,6 @@ class URBAN_SED(Dataset):
 
     def index_files(self):
         assert os.path.exists(self.root), 'Root directory not found'
-        assert os.path.isdir(f"{self.root}/audio/{self.split}"), 'Audio directory not found'
         
         print(f"Indexing {self.split} files")
         
