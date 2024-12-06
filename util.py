@@ -77,6 +77,7 @@ def save_model(model,time, name):
     torch.save(model.state_dict(), f"model/{time}/{name}.pt")
 
 def clear_tmp():
+    os.makedirs('tmp', exist_ok=True)
     # remove all png in tmp folder
     for file in os.listdir('tmp'):
         if file.endswith('.png'):
@@ -88,7 +89,7 @@ def post_process(output, threshold=0.4, min_duration=10, max_gap=3):
     min_duration: int, the minimum frames to consider a segment as positive
     max_gap: int, the maximum frames to consider as a gap
     """
-    # output: (batch_size, num_classes, seq_len)
+    # output: (batch_size, num_classes, seq_len) numpy array
     batch_size, num_classes, seq_len = output.shape
     threshold_output = output > threshold
     
@@ -167,14 +168,3 @@ def segment_to_time(prediction, actual_length=10):
             if start is not None:
                 lines.append(f"{start/seq_len*actual_length:.5f},{end/seq_len*actual_length:.5f},{classes[i]}")
     return lines
-
-if __name__ == "__main__":
-    threshold = 0.7
-    test_input = np.random.rand(10, 11, 430)
-    threshold_output = test_input > 0.7
-    test_output = post_process(test_input, threshold=threshold)
-    
-    display_imgs(np.concat([test_input[0,:,:][np.newaxis,...], threshold_output[0,:,:][np.newaxis,...] ,test_output[0,:,:][np.newaxis,...]], axis=0))
-    
-    plt.show()
-

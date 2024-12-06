@@ -164,9 +164,5 @@ if __name__ == '__main__':
     # load the processed data
     # train_data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='train', save_processed_dir='n_mels_64', load_all_data=True, n_mels=64)
     # validate_data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='validate', save_processed_dir='n_mels_64', load_all_data=True, n_mels=64)
-    test_data = URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='test',preprocessed_dir='n_mels_64', save_processed_dir='n_mels_64', load_all_data=True, n_mels=64)
-    print(len(test_data))
-    print(test_data.all_data[0].shape)
-    
-    save_output(test_data.all_data[0].unsqueeze(0), test_data.all_labels[0].unsqueeze(0), test_data.all_labels[0].unsqueeze(0), 100)
+    pass
     

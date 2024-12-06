@@ -11,13 +11,17 @@ from util import post_process, segment_to_time, display_imgs
 import sed_eval
 import dcase_util
 
-MODEL_PTH = "model/20241203-174122-SED-ContextFE/model-best.pt"
+MODEL_PTH = "model/20241203-165317-SED-NormalFE/model-best.pt"
 BATCH_SIZE = 32
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 model = SED_LSTM(mel_bins=64, lstm_input_size=256, hidden_size=256, num_classes=11, num_layers=3, bidirectional=True)
 model.load_state_dict(torch.load(MODEL_PTH, weights_only=True))
 
 test_dataloader = DataLoader(URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='test', preprocessed_dir='n_mels_64', load_all_data=True, n_mels=64), batch_size=BATCH_SIZE, shuffle=False)
 test_loader = tqdm(test_dataloader, desc="Generating annotation for test data", ncols=100)
+
+model = model.to(device)
 model.eval()
 
 save_path = "test_output/"+ MODEL_PTH.split("/")[-2]
@@ -44,6 +48,7 @@ classes = ['air_conditioner', 'car_horn', 'children_playing', 'dog_bark',
 
 for i, (spectrogram, label) in enumerate(test_loader):
     with torch.no_grad():
+        spectrogram = spectrogram.to(device)
         output = model(spectrogram)
         output = torch.sigmoid(output).detach().cpu().numpy()
     processed_output = post_process(output)
@@ -90,7 +95,7 @@ segment_based_metrics = sed_eval.sound_event.SegmentBasedMetrics(
 
 event_based_metrics = sed_eval.sound_event.EventBasedMetrics(
     event_label_list=event_labels,
-    t_collar=0.250
+    t_collar=0.200
 )
 
 # Go through files
@@ -108,3 +113,5 @@ for file_pair in data:
 with open(f"{save_path}/result_metrics.txt", 'w') as f:
     f.write(str(segment_based_metrics))
     f.write(str(event_based_metrics))
+
+print(f"result saved at {save_path}/result_metrics.txt")
