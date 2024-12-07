@@ -3,32 +3,40 @@ import torch
 
 
 class SED_LSTM(nn.Module):
-    def __init__(self, mel_bins, lstm_input_size, hidden_size, num_classes, num_layers=1, bidirectional=False, feature_extractor="normal", **kwargs):
+    def __init__(self, mel_bins, lstm_input_size, hidden_size, num_classes, num_layers=3, bidirectional=False, feature_extractor="normal", **kwargs):
         super(SED_LSTM, self).__init__()
-        self.lstm = nn.LSTM(lstm_input_size, hidden_size, proj_size=num_classes, batch_first=True, num_layers=num_layers, bidirectional=bidirectional)
+        self.lstm = nn.LSTM(lstm_input_size, hidden_size, batch_first=True, num_layers=num_layers, bidirectional=bidirectional)
         
         if feature_extractor == "normal":
             self.feature_extractor = FeatureExtractor(mel_bins, lstm_input_size)
         elif feature_extractor == "contextual":
-            num_frames = kwargs.get('num_frames', 5)
+            num_frames = kwargs.get('num_frames', 10)
             self.feature_extractor = ContextualFeatureExtractor(mel_bins, lstm_input_size, num_frames=num_frames)
         elif feature_extractor == "projection":
             self.feature_extractor = FeatureProjection(mel_bins, lstm_input_size)
+        elif feature_extractor == "combined":
+            num_frames = kwargs.get('num_frames', 8)
+            self.feature_extractor = CombinedFeatureExtractor(mel_bins, lstm_input_size, num_frames)
         
         self.input_proj = nn.Linear(mel_bins, lstm_input_size)
-        self.softmax = nn.Softmax(dim=-1)
+        self.ff_1 = nn.Linear(hidden_size, hidden_size // 2)
+        self.ff_2 = nn.Linear(hidden_size // 2, hidden_size // 4)
+        self.ff_3 = nn.Linear(hidden_size // 4, num_classes)
         
-        self.bidirectional = bidirectional
+
     
     def forward(self, x):
         # input shape (batch, mel_bins, seq_len)
         x = self.feature_extractor(x)
-        x, _ = self.lstm(x) # (batch, seq_len, num_classes)
-        # x = self.softmax(x) # not needed if we are using BCEWithLogitsLoss
-        x = x.permute(0, 2, 1) # (batch, num_classes, seq_len)
-        if self.bidirectional:
-            x = x[:, x.size(1)//2:, :]  # only take the output from the second lstm block
-        return x
+        x, _ = self.lstm(x) # (batch, seq_len, hidden_size)
+
+        x = self.ff_1(x)
+        x = torch.relu(x)
+        x = self.ff_2(x)
+        x = torch.relu(x)
+        x = self.ff_3(x)
+        
+        return x.permute(0, 2, 1) # (batch, num_classes, seq_len)
 
 class FeatureProjection(nn.Module):
     def __init__(self, mel_bins, lstm_input_size):
@@ -70,7 +78,7 @@ class FeatureExtractor(nn.Module):
         return x
     
 class ContextualFeatureExtractor(nn.Module):
-    def __init__(self, mel_bins, lstm_input_size, num_frames=10):
+    def __init__(self, mel_bins, lstm_input_size, num_frames):
         super().__init__()
         self.num_frames = num_frames
         self.lstm_input_size = lstm_input_size
@@ -103,7 +111,62 @@ class ContextualFeatureExtractor(nn.Module):
         x = self.conv3(x) # (batch*seq_len, 1, lstm_input_size)
         x = x.view(batch_size, seq_len, -1) # (batch, seq_len, lstm_input_size)
         return x
-    
+
+class ContextualFeatureExtractor_v2(nn.Module):
+    def __init__(self, mel_bins, lstm_input_size, num_frames):
+        super().__init__()
+        self.num_frames = num_frames
+        self.lstm_input_size = lstm_input_size
+        
+        self.initial_proj = nn.Linear(mel_bins, lstm_input_size)
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
+        
+        self.pool2d = nn.MaxPool2d(kernel_size=2)
+        
+        self.bn1 = nn.BatchNorm2d(16)
+        self.bn2 = nn.BatchNorm2d(32)
+        
+        self.ff_1 = nn.Linear(32*(num_frames//4)*(lstm_input_size//4), 8*num_frames//4*lstm_input_size//4)
+        self.ff_2 = nn.Linear(8*num_frames//4*lstm_input_size//4, lstm_input_size)
+
+    def forward(self, x):
+        x = x.permute(0, 2, 1)
+        batch_size, seq_len = x.size(0), x.size(1)
+        x = self.initial_proj(x) # (batch, seq_len, lstm_input_size)
+        x = torch.relu(x)
+        pad_matrix = torch.zeros(x.size(0), self.num_frames-1, self.lstm_input_size).to(x.device)
+        x = torch.cat([pad_matrix, x], dim=1) # (batch, seq_len+num_frames-1, lstm_input_size)
+        x = x.unfold(dimension=1, size=self.num_frames, step=1) # (batch, seq_len, num_frames, lstm_input_size)
+        x = x.reshape(batch_size * seq_len, 1, self.num_frames, self.lstm_input_size)
+        
+        x = self.conv1(x) # (batch * seq_len, 16, num_frames, lstm_input_size)
+        x = torch.relu(x)
+        x = self.pool2d(x) # (batch * seq_len, 16, num_frames//2, lstm_input_size//2)
+        x = self.bn1(x)
+        
+        x = self.conv2(x) # (batch * seq_len, 32, num_frames//2, lstm_input_size//2)
+        x = torch.relu(x)
+        x = self.pool2d(x) # (batch * seq_len, 32, num_frames//4, lstm_input_size//4)
+        x = self.bn2(x)
+        
+        x = x.view(batch_size, seq_len, -1) # (batch * seq_len, 32*num_frames//4*lstm_input_size//4)
+        x = self.ff_1(x) # (batch * seq_len, 8*num_frames//4*lstm_input_size//4)
+        x = torch.relu(x)
+        x = self.ff_2(x) # (batch * seq_len, lstm_input_size)
+        x = torch.relu(x)
+        return x.view(batch_size, seq_len, -1) # (batch, seq_len, lstm_input_size)
+        
+class CombinedFeatureExtractor(nn.Module):
+    def __init__(self, mel_bins, lstm_input_size, num_frames):
+        super().__init__()
+        self.normal = FeatureExtractor(mel_bins, lstm_input_size)
+        self.contextual = ContextualFeatureExtractor_v2(mel_bins, lstm_input_size, num_frames)
+        
+        
+    def forward(self, x):
+        merged = 0.5 * (self.normal(x) + self.contextual(x))
+        return torch.relu(merged)
     
 class SED_Attention_LSTM(nn.Module):
     def __init__(self, mel_bins, lstm_input_size, hidden_size, num_classes, d_model=256):

@@ -70,6 +70,19 @@ Then open a browser and go to `localhost:6006`.
 model weights will be saved at `model/` folder, under the folder with the starting time of the training.  
 Additionally, you can find all the hyperparameters used in the training in the `summary.txt` file in the same folder.
 
+## Adjusting post processing parameters
+The post processing parameters can be adjusted in the `utility.py` `post_process` function.
+- `threshold`: confidence threshold for the output of the model
+- `min_duration`: minimum duration of the event in frames
+- `max_gap`: maximum gap between the events in frames
+
+We have provided a script to visualize and adjust the post processing parameters.
+
+```bash
+python adjust.py
+```
+Note: the purpose of this script is to visualize the effect of the post processing parameters. It sill NOT save the adjusted parameters.
+
 ## Evaluation
 ### run test script
 ```bash
@@ -82,3 +95,4 @@ python test.py --model model/SED-Normal/model-best.pt
 The script will generate a summary txt file at `test_output/` folder.
 
 ## Citation
+TODO

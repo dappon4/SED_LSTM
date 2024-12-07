@@ -1,0 +1,14 @@
+Parameters
+	Hidden size: 512
+	Feature extractor: normal
+	Epochs: 60
+	Learning rate: 0.0005
+	Batch size: 32
+	Optimzer: adamw
+	Loss function: focal
+	Load all data: True
+	Checkpoint step: 10
+
+Training time: 2017.64s
+Final validation loss: 0.0140
+Best validation loss: 0.0130 at epoch 43

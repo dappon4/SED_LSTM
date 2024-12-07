@@ -83,7 +83,7 @@ def clear_tmp():
         if file.endswith('.png'):
             os.remove(f'tmp/{file}')
 
-def post_process(output, threshold=0.4, min_duration=10, max_gap=3):
+def post_process(output, threshold=0.4, min_duration=20, max_gap=3):
     """
     confidence_threshold: float, the threshold to consider a segment as positive
     min_duration: int, the minimum frames to consider a segment as positive

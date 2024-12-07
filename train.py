@@ -1,10 +1,11 @@
+import os
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 
 from dataset import URBAN_SED
-from model import SED_LSTM, SED_Attention_LSTM, FocalLoss
+from model import SED_LSTM, FocalLoss
 from util import save_output, save_model, clear_tmp
 import time
 import argparse
@@ -15,17 +16,14 @@ def main(args):
     BATCH_SIZE = args.batch_size
     LOAD_ALL_DATA = args.load_all_data
     CHECKPOINT_STEP = args.checkpoint_step
-
     t1 = time.time()
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     train_dataloader = DataLoader(URBAN_SED(args.dataset_root, split='train', preprocessed_dir='n_mels_64',load_all_data=LOAD_ALL_DATA, n_mels=64), batch_size=BATCH_SIZE, shuffle=True)
     validate_dataloader = DataLoader(URBAN_SED(args.dataset_root, split='validate', preprocessed_dir='n_mels_64', load_all_data=LOAD_ALL_DATA, n_mels=64), batch_size=BATCH_SIZE, shuffle=True)
-    # test_dataloader = DataLoader(URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='test', preprocessed_dir='base', load_all_data=LOAD_ALL_DATA), batch_size=BATCH_SIZE, shuffle=True)
 
-    # model = SED_Attention_LSTM(mel_bins=64, lstm_input_size=128, hidden_size=256, num_classes=11, d_model=128).to('cuda')
-    model = SED_LSTM(mel_bins=64, lstm_input_size=256, hidden_size=args.hidden_size, num_classes=11, num_layers=3, bidirectional=True, feature_extractor=args.feature_extractor).to(device)
+    model = SED_LSTM(mel_bins=64, lstm_input_size=256, hidden_size=args.hidden_size, num_classes=11, num_layers=args.num_layers, bidirectional=False, feature_extractor=args.feature_extractor).to(device)
     
     if args.optimzer == 'adam':
         optimzer = torch.optim.Adam(model.parameters(), lr=LR)
@@ -41,14 +39,12 @@ def main(args):
     elif args.loss_fn == 'focal':
         loss_fn = FocalLoss()
 
-    folder_name = time.strftime("%Y%m%d-%H%M%S") + "-" + f"[{args.feature_extractor},{args.hidden_size},{LR},{args.optimzer},{args.loss_fn}]"
+    folder_name = time.strftime("%Y%m%d-%H%M%S") + "-" + f"[{args.feature_extractor},{args.hidden_size},{args.num_layers},{LR},{args.optimzer},{args.loss_fn}]"
     writer = SummaryWriter()  # Initialize SummaryWriter
     clear_tmp()  # Clear the tmp folder
-
+    best_validate_loss = 1000   
     for epoch in range(EPOCH):
-        
-        best_validate_loss = 1000
-        
+        model.train()
         train_loader = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{EPOCH} - Training", ncols=100)
         train_loss_sum = 0
         for i, (spectrogram, label) in enumerate(train_loader):
@@ -69,6 +65,7 @@ def main(args):
         train_loader.set_postfix(loss=train_loss)
         
         # Validation loop with tqdm
+        model.eval()
         validate_loader = tqdm(validate_dataloader, desc=f"Epoch {epoch+1}/{EPOCH} - Validation", ncols=100)
         validation_loss_sum = 0
         for i, (spectrogram, label) in enumerate(validate_loader):
@@ -121,9 +118,9 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Training hyperparameters')
 
-    # Step 2: Define hyperparameter arguments
-    parser.add_argument('--hidden_size', type=int, default=256, help='Hidden size of the LSTM')
-    parser.add_argument('--feature_extractor', type=str, default='normal', help='Feature extractor type, one of [normal, contextual, projection]')
+    parser.add_argument('--hidden_size', type=int, default=512, help='Hidden size of the LSTM')
+    parser.add_argument('--feature_extractor', type=str, default='normal', help='Feature extractor type, one of [normal, contextual, projection, combined]')
+    parser.add_argument('--num_layers', type=int, default=3, help='Number of LSTM layers')
     parser.add_argument('--epochs', type=int, default=60, help='Number of training epochs')
     parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size')

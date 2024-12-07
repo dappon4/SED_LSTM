@@ -11,14 +11,54 @@ from util import post_process, segment_to_time, display_imgs
 import sed_eval
 import dcase_util
 import argparse
+import time
 
+def runtime(model):
+    test_dataloader = DataLoader(URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='test', preprocessed_dir='n_mels_64', load_all_data=True, n_mels=64), batch_size=1, shuffle=False)
+    
+    devices = ['cpu']
+    if torch.cuda.is_available():
+        devices.append('cuda')
+    
+    result = {device: {} for device in devices}
+    
+    for device in devices:
+        model.to(device)
+        model.eval()
+        lst = []
+        for i in range(100):
+            spectrogram, label = next(iter(test_dataloader))
+            with torch.no_grad():
+                spectrogram = spectrogram.to(device)
+                t1 = time.time()
+                output = model(spectrogram)
+                output = torch.sigmoid(output)
+                lst.append(time.time() - t1)
+        
+        result[device]["mean"] = np.mean(lst).item()
+        result[device]["std"] = np.std(lst).item()
+        result[device]["min"] = np.min(lst).item()
+        result[device]["max"] = np.max(lst).item()
+    
+    # format output
+    output = ""
+    for device in devices:
+        output += "\n\n"
+        output += f"{device}:\n"
+        output += f"\tmean: {result[device]['mean']}\n"
+        output += f"\tstd: {result[device]['std']}\n"
+        output += f"\tmin: {result[device]['min']}\n"
+        output += f"\tmax: {result[device]['max']}\n"
+    
+    return output
+    
 def main(args):
     # paht example: model/20241203-165317-SED-NormalFE/model-best.pt
     MODEL_PTH = args.model
     BATCH_SIZE = 32
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    model = SED_LSTM(mel_bins=64, lstm_input_size=256, hidden_size=256, num_classes=11, num_layers=3, bidirectional=True)
+    model = SED_LSTM(mel_bins=64, lstm_input_size=256, hidden_size=512, num_classes=11, num_layers=3, feature_extractor='normal')
     model.load_state_dict(torch.load(MODEL_PTH, weights_only=True))
 
     test_dataloader = DataLoader(URBAN_SED('../datasets/URBAN_SED/URBAN-SED_v2.0.0', split='test', preprocessed_dir='n_mels_64', load_all_data=True, n_mels=64), batch_size=BATCH_SIZE, shuffle=False)
@@ -116,6 +156,7 @@ def main(args):
     with open(f"{save_path}/result_metrics.txt", 'w') as f:
         f.write(str(segment_based_metrics))
         f.write(str(event_based_metrics))
+        f.write(runtime(model))
 
     print(f"result saved at {save_path}/result_metrics.txt")
     
