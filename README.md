@@ -1,6 +1,6 @@
 # SED_LSTM
 ## Introduction
-This repository contains the implementation of the Sound Event Detection (SED) model using Long Short-Term Memory (LSTM) network.
+This repository contains the implementation of the Real-time Sound Event Detection (SED) model using Long Short-Term Memory (LSTM) network.
 
 ## Dataset
 The dataset used in this project is the [URBAN-SED](https://urbansed.weebly.com/). Version of the dataset used in this project is v2.0.0. This dataset is under the [Creative Commons Attribution 4.0 International License](https://creativecommons.org/licenses/by/4.0/).
@@ -13,10 +13,10 @@ datasets
     └── URBAN-SED_v2.0.0
         ├── annotations
         ├── audio
-        ...
+        └── ...
 SED_LSTM
 ├── train.py
-...
+└── ...
 ```
 
 ## Quick Start
@@ -93,6 +93,3 @@ example:
 python test.py --model model/SED-Normal/model-best.pt
 ```
 The script will generate a summary txt file at `test_output/` folder.
-
-## Citation
-TODO

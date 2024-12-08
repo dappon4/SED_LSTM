@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from dataset import URBAN_SED
 from model import SED_LSTM
 from tqdm import tqdm
-from util import post_process, segment_to_time, display_imgs
+from util import post_process, segment_to_time, display_imgs, count_parameters
 
 import sed_eval
 import dcase_util
@@ -157,7 +157,8 @@ def main(args):
         f.write(str(segment_based_metrics))
         f.write(str(event_based_metrics))
         f.write(runtime(model))
-
+        f.write("\n")
+        f.write(f"Parameters: {count_parameters(model)}\n")
     print(f"result saved at {save_path}/result_metrics.txt")
     
 if __name__ == '__main__':

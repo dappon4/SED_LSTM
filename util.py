@@ -168,3 +168,6 @@ def segment_to_time(prediction, actual_length=10):
             if start is not None:
                 lines.append(f"{start/seq_len*actual_length:.5f},{end/seq_len*actual_length:.5f},{classes[i]}")
     return lines
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
